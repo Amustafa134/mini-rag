@@ -4,75 +4,114 @@ from fastapi.responses import JSONResponse
 import os
 import aiofiles  # Async file I/O
 import logging
-
-logger = logging.getLogger("uvicorn.error")     # Use Uvicorn's logger for consistent logging
+from .schemes.data import ProcessRequest
 
 # Import application settings and controllers
 from helpers.config import get_settings, Settings
-from controllers import DataController, ProjectController
-from models import ResponseeSignal   # Enum for standardized response signals
+from controllers import DataController, ProjectController, ProcessController
+from models import ResponseeSignal  # Enum for standardized response signals
+
+# Use Uvicorn's logger for consistent error/output logging
+logger = logging.getLogger("uvicorn.error")
 
 # Define the router for data-related API endpoints
 data_router = APIRouter(
-    prefix = "/api/v1/data",    # Base path for this router
-    tags = ["api_v1", "data"],  # Tags for grouping in Swagger docs
+    prefix="/api/v1/data",    # Base path for this router
+    tags=["api_v1", "data"],  # Tags for grouping in Swagger docs
 )
 
-# Endpoint: Upload a file associated with a specific project
+# ----------------------------------------------
+# Endpoint: Upload a file to a specific project
+# ----------------------------------------------
+
 @data_router.post("/upload/{project_id}")
 async def upload_data(project_id: str, file: UploadFile,
                       app_settings: Settings = Depends(get_settings)):
     
-
     # Create an instance of the data controller
     datacontroller = DataController()
     
     # Validate file type and size
-    is_valid, result_signal = await datacontroller.validate_upload_file(file=file)
+    is_valid, result_signal = datacontroller.validate_upload_file(file=file)
 
-
-    # If validation fails, return 400 Bad Request with the failure signal
+    # If validation fails, return 400 with the failure signal
     if not is_valid:
         return JSONResponse(
-            status_code = status.HTTP_400_BAD_REQUEST,
-            content = {
-            "Signal": result_signal
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "Signal": result_signal
             }
-        
         )
 
-    # Retrieve the directory path where the file should be saved
-    project_dir_path = ProjectController().get_project_path(project_id = project_id)
-    
-    # Generate a unique file path for the upload
+    # Determine the path to store the uploaded file
+    project_dir_path = ProjectController().get_project_path(project_id=project_id)
+
+    # Generate a unique file path and ID for the file
     file_path, file_id = datacontroller.generate_unique_filepath(
-        orig_file_name = file.filename,
-        project_id = project_id
+        orig_file_name=file.filename,
+        project_id=project_id
     )
-    
+
     try:
-        # Save the uploaded file in chunks to avoid memory overload
+        # Save file in chunks to prevent memory overload
         async with aiofiles.open(file_path, "wb") as f:
             while chunk := await file.read(app_settings.FILE_DEFAULT_CHUNK_SIZE):
                 await f.write(chunk)
-
-    except Exception as e:   
-        
-        # Log any file writing issues and return a failure response
-        logger.error(f"Error while upload file: {e}")
+    except Exception as e:
+    
+        # Log the error and return failure response
+        logger.error(f"Error while uploading file: {e}")
 
         return JSONResponse(
-            status_code = status.HTTP_400_BAD_REQUEST,
-            content = {
-            "Signal": ResponseeSignal.FILE_UPLOAD_FAILED.value
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "Signal": ResponseeSignal.FILE_UPLOAD_FAILED.value
             }
-        
-        )        
+        )
 
-    # Return a success signal if file was uploaded successfully
+    # Return success signal along with file ID
     return JSONResponse(
-        content = {
-        "Signal": ResponseeSignal.FILE_UPLOAD_SUCCESS.value,
-        "file_id": file_id
+        content={
+            "Signal": ResponseeSignal.FILE_UPLOAD_SUCCESS.value,
+            "file_id": file_id
         }
     )
+
+
+# ----------------------------------------------
+# Endpoint: Process a previously uploaded file
+# ----------------------------------------------
+
+@data_router.post("/process/{project_id}")
+async def process_endpoint(project_id: str, process_request: ProcessRequest):
+    
+    # Extract parameters from the request body
+    file_id = process_request.file_id
+    chunk_size = process_request.chunk_size
+    overlap_size = process_request.overlap_size
+
+    # Create an instance of the process controller
+    process_controller = ProcessController(project_id=project_id)
+
+    # Load the contents of the file
+    file_content = process_controller.get_file_content(file_id=file_id)
+
+    # Process file into text chunks
+    file_chunks = process_controller.process_file_content(  # <-- FIXED
+        file_content=file_content,
+        file_id=file_id,
+        chunk_size=chunk_size,
+        overlap_size=overlap_size
+    )
+
+    # Handle processing failure
+    if file_chunks is None or len(file_chunks) == 0:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "Signal": ResponseeSignal.PROCESSING_FAILED.value
+            }
+        )
+
+    # Return processed chunks
+    return file_chunks
