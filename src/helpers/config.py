@@ -11,11 +11,17 @@ class Settings(BaseSettings):
     FILE_MAX_SIZE: int
     FILE_DEFAULT_CHUNK_SIZE: int
 
-    model_config = SettingsConfigDict(env_file=".env")
+    MONGODB_URL: str
+    MONGODB_DATABASE: str
+
+    class Config:
+        env_file = ".env"
+    # model_config = SettingsConfigDict(env_file=".env")
 
 def get_settings():
-
-    settings = Settings()
-    print(settings.dict())  # Helps during debugging
-    
     return Settings()
+
+    # settings = Settings()
+    # print(settings.dict())  # Helps during debugging
+
+    # return settings
