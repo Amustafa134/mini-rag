@@ -5,6 +5,7 @@ from models import ResponseeSignal
 import os
 
 class ProjectController(BaseController):
+    
     def __init__(self):
         # Inherit initialization from BaseController
         super().__init__()
