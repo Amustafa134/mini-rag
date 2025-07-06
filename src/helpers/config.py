@@ -1,11 +1,19 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import List
+from typing import List, Optional
 
 class Settings(BaseSettings):
 
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=False,          # optional
+    )
+
     APP_NAME: str
     APP_VERSION: str
-    OPENAI_API_KEY: str
+
+    OPENAI_API_KEY: str = None
+    OPENAI_API_URL: Optional[str] = None
+    COHERE_API_KEY: Optional[str] = None
 
     FILE_ALLOWED_TYPES: list[str]
     FILE_MAX_SIZE: int
@@ -17,25 +25,20 @@ class Settings(BaseSettings):
     GENERATION_BACKEND: str
     EMBEDDING_BACKEND: str
 
-    OPENAI_API_KEY: str = None
-    OPENAI_API_URL: str = None
-    COHERE_API_KEY: str = None
+    GENERATION_MODEL_ID: Optional[str] = None
+    EMBEDDING_MODEL_ID: Optional[str] = None
+    EMBEDDING_MODEL_SIZE: Optional[int] = None
 
-    GENERATION_MODEL_ID: str = None
-    EMBEDDING_MODEL_ID: str = None
-    EMBEDDING_MODEL_SIZE: int = None
-    INPUT_DAFAULT_MAX_CHARACTERS: int = None
-    GENERATION_DAFAULT_MAX_TOKENS: int = None
-    GENERATION_DAFAULT_TEMPERATURE: float = None
+    INPUT_DEFAULT_MAX_CHARACTERS: Optional[int] = None
+    GENERATION_DEFAULT_MAX_TOKENS: Optional[int] = None
+    GENERATION_DEFAULT_TEMPERATURE: Optional[float] = None
 
-    class Config:
-        env_file = ".env"
-    # model_config = SettingsConfigDict(env_file=".env")
+    VECTOR_DB_BACKEND : str
+    VECTOR_DB_PATH : str
+    VECTOR_DB_DISTANCE_METHOD: Optional[str] = None
 
-def get_settings():
+    PRIMARY_LANG: str = "en"
+    DEFAULT_LANG: str = "en"
+
+def get_settings() -> Settings:
     return Settings()
-
-    # settings = Settings()
-    # print(settings.dict())  # Helps during debugging
-
-    # return settings
